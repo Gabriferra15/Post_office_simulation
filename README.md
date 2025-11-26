@@ -1,50 +1,68 @@
-This project is a complete simulation of a post office implemented in C as part of the Operating Systems course.
-It models the interaction between users, workers, and a director, using real UNIX process management and IPC mechanisms.
+# 📬 Post Office Simulation
 
-🚀 Main Features
+**Operating Systems Project | Università di Torino**
 
-Multi-process architecture
-The system spawns multiple processes (director, workers, users), each with a specific role.
+![C](https://img.shields.io/badge/Language-C11-00599C?style=flat&logo=c&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat&logo=linux&logoColor=black)
+![Build](https://img.shields.io/badge/Build-Make-00CC00?style=flat&logo=gnu&logoColor=white)
 
-Inter-Process Communication (IPC)
-Implemented using
+> A robust multi-process simulation of a post office environment, implemented in C to demonstrate **UNIX process management**, **IPC mechanisms**, and **concurrency control**.
 
-- Shared memory (shm)
-- Semaphores
-- Message queues
-- Ensures correct synchronization between processes.
-  
-Dynamic office logic
-- The director can open/close the office dynamically.
-- Workers serve users based on office state and queue availability.
-- Users attempt to access the office respecting capacity limits and office rules.
-  
-Statistics & logging
-- Daily summary of served users
-- Waiting times
-- Peak load moments
-- Graceful shutdown of all processes
+---
 
-🛠️ Technologies Used
+## 📖 Overview
 
-- C (GNU11)
-- POSIX / System V IPC
-- make
-- Linux environment
+This project models the daily operations of a post office, managing the complex interactions between **Customers** (Users), **Clerks** (Workers), and the **Manager** (Director). The goal was to build a system that handles resource contention, synchronization, and process lifecycle management using low-level system calls.
 
-📁 Project Structure
+## 🚀 Key Features
 
-- director.c — Office supervisor logic
-- worker.c — Worker processes
-- user.c — Incoming customers
-- ipc/ — Shared memory, semaphores, message queue utilities
-- include/ — Header files
-- Makefile
+### 🏗️ Multi-Process Architecture
+The simulation spawns distinct processes for each role, mimicking a real-world distributed system:
+* **Director:** Manages the office state (open/close) and resources.
+* **Workers:** Serve customers from the queue.
+* **Users:** Generate requests and attempt to access the office.
 
-📚 What I learned
+### 🔄 Inter-Process Communication (IPC)
+Rigorous synchronization implemented using **System V** / **POSIX** standards:
+* **Shared Memory (shm):** For sharing office status and statistics across processes.
+* **Semaphores:** To manage access to critical sections and queues.
+* **Message Queues:** For structured communication between users and workers.
 
-- Process creation and lifecycle (fork, wait)
-- Synchronization between concurrent processes
-- Avoiding deadlocks and race conditions
-- Designing complex systems with modular C code
-- Debugging multi-process applications with gdb and logging
+### ⚙️ Dynamic Office Logic
+* **Adaptive Behavior:** Workers serve users based on queue load and office status.
+* **Capacity Management:** Users respect physical capacity limits; new processes wait or leave if the office is full.
+* **Graceful Shutdown:** Ensures all resources (memory, semaphores) are released correctly upon termination.
+
+### 📊 Statistics & Logging
+* Daily summary reports of served vs. rejected users.
+* Tracking of waiting times and service times.
+* Identification of peak load moments.
+
+---
+
+## 🛠️ Tech Stack
+
+* **Language:** C (GNU11 Standard)
+* **OS:** Linux Environment
+* **Core Concepts:** `fork()`, `waitpid()`, `execvp()`, Signals
+* **IPC Tools:** `shmget`, `semop`, `shmdt`, `shmat`
+* **Build Tool:** GNU Make
+
+---
+
+## 📂 Project Structure
+
+```text
+.
+├── src/
+│   ├── main.c       
+│   ├── operatore.c  
+│   ├── user.c        
+│   └── ticket.c     
+├── include/          
+│   └── common.h     
+├── conf/
+│   ├── config_timeout.conf      
+│   └── config_explode.conf   
+├── Makefile      
+└── README.md
