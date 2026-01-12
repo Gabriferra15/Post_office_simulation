@@ -8,7 +8,7 @@ int shm_id, sem_id, msg_id;
  */
 void cleanup() {
     // 1. Rimuovo le risorse IPC. Uso IPC_RMID per marcarle per la distruzione
-    // Se non lo faccio, rimangono in /dev/shm o ipcs finché non riavvio la macchina
+    // Se non lo faccio, rimangono in /dev/shm o ipcs finché non riavvio il pc
     shmctl(shm_id, IPC_RMID, NULL); 
     semctl(sem_id, 0, IPC_RMID);    
     msgctl(msg_id, IPC_RMID, NULL); 
@@ -40,7 +40,7 @@ void load_config(const char *filename, Config *cfg) {
     char line[128], key[64];
     int val;
     
-    // Valori di default (Fallback nel caso il file sia incompleto)
+    // Valori di default (Nel caso il file sia incompleto)
     cfg->sim_duration = 5; cfg->explode_threshold = 50; 
     cfg->nof_users = 20; cfg->nof_workers = 5; cfg->nano_secs_per_min = 100000;
     cfg->nof_pause = 3; cfg->p_serv_min = 10; cfg->p_serv_max = 90;
@@ -61,7 +61,7 @@ void load_config(const char *filename, Config *cfg) {
     fclose(f);
 }
 
-// Stampa reportistica: Legge dalla SHM
+// Stampa report: Legge dalla SHM
 // Nota: Accede in lettura, ma va chiamata quando il sistema è stabile o protetto
 void print_stats(SharedData *shm, int day, int simulation_end) {
     Stats *s = simulation_end ? &shm->stats_totali : &shm->stats_giornaliere;
@@ -81,7 +81,7 @@ void print_stats(SharedData *shm, int day, int simulation_end) {
         printf("  %s: %d\n", SERVICE_NAMES[i], s->servizi_erogati[i]);
     }
     
-    // Mapping visuale degli sportelli (Solo report giornaliero)
+    // Mapping degli sportelli (Solo report giornaliero)
     if(!simulation_end) {
         printf("-- Stato Sportelli --\n");
         for(int i=0; i<MAX_SPORTELLI; i++) {
@@ -120,7 +120,7 @@ int main(int argc, char *argv[]) {
     msg_id = msgget(KEY_MSG, IPC_CREAT | 0666);
     if (msg_id < 0) { perror("msgget"); exit(1); }
     
-    // Attach e azzeramento memoria (fondamentale per pulire esecuzioni precedenti sporche)
+    // Attach e azzeramento memoria fondamentale per pulire esecuzioni precedenti sporche
     SharedData *shm = (SharedData *)shmat(shm_id, NULL, 0);
     if (shm == (void*)-1) { perror("shmat"); cleanup(); }
     memset(shm, 0, sizeof(SharedData)); 
@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
     
 
     // --- 2. FASE DI FORKING ---
-    // Uso il pattern fork() + exec() per rispettare la modularità richiesta.
+    // Uso fork() + exec() per rispettare la modularità
     
     // Processo Erogatore Ticket
     if (fork() == 0) { 
@@ -167,7 +167,7 @@ int main(int argc, char *argv[]) {
     sleep(1); 
     printf("[Direttore] Processi creati. Apro la barriera (Start)!\n");
     
-    // Apro il tornello: Sblocco il primo processo che farà scattare la cascata
+    // Apro il tornello: Sblocco il primo processo che farà scattare tutti
     struct sembuf start_op = {SEM_START, 1, 0};
     semop(sem_id, &start_op, 1); 
 
@@ -215,7 +215,11 @@ int main(int argc, char *argv[]) {
         // Accumulo le statistiche giornaliere nel totale
         shm->stats_totali.utenti_serviti += shm->stats_giornaliere.utenti_serviti;
         shm->stats_totali.servizi_non_erogati += shm->stats_giornaliere.servizi_non_erogati;
-        // ... (copia altri campi) ...
+        shm->stats_totali.tempo_attesa_totale += shm->stats_giornaliere.tempo_attesa_totale;
+        shm->stats_totali.tempo_servizio_totale += shm->stats_giornaliere.tempo_servizio_totale;
+        shm->stats_totali.pause_effettuate += shm->stats_giornaliere.pause_effettuate;
+        // -------------------------------
+
         shm->stats_totali.operatori_attivi += shm->stats_giornaliere.operatori_attivi;
         for(int i=0; i<NUM_SERVICES; i++) 
             shm->stats_totali.servizi_erogati[i] += shm->stats_giornaliere.servizi_erogati[i];
@@ -238,7 +242,7 @@ int main(int argc, char *argv[]) {
     shm->stop_simulation = 1; // Dico ai figli di uscire dai loro while
     sleep(1); // Do tempo ai figli di leggere il flag
 
-    // Stacco la mia referenza alla SHM prima di distruggerla
+    // Stacco la referenza alla SHM prima di distruggerla
     shmdt(shm); 
     
     cleanup(); // Chiamo la pulizia finale

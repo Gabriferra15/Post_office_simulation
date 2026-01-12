@@ -2,11 +2,11 @@
 #define COMMON_H
 
 /* * COMMON.H
- * Questo file agisce da "contratto" tra i vari processi (Direttore, Utente, Operatore, Erogatore)
+ * Questo file agisce da contratto tra i vari processi
  * Contiene:
  * 1. Le chiavi IPC per l'accesso alle risorse
  * 2. Le strutture dati condivise (Shared Memory e Messaggi)
- * 3. Funzioni helper (static inline) per semplificare le operazioni sui semafori
+ * 3. Funzioni helper per semplificare le operazioni sui semafori
  */
 
 #include <stdio.h>
@@ -33,20 +33,20 @@
 
 // --- COSTANTI DEL SISTEMA ---
 #define NUM_SERVICES 6      // Numero di tipologie di servizio
-#define MAX_SPORTELLI 10    // Numero massimo fisico di sportelli
+#define MAX_SPORTELLI 10    // Numero massimo di sportelli
 
 // --- LAYOUT SEMAFORI ---
-// Ho scelto di usare un UNICO array di semafori per gestire tutte le sincronizzazioni
+// Ho scelto di usare un unico array di semafori per gestire tutte le sincronizzazioni
 // Questo riduce il numero di chiamate a semget/semctl
 #define SEM_MUTEX 0         // Indice 0: Mutex binario per la SHM (Protezione dati)
-#define SEM_START 1         // Indice 1: Barriera (Rendezvous) per lo start sincronizzato
+#define SEM_START 1         // Indice 1: Barriera per lo start sincronizzato
 #define SEM_QUEUE_BASE 2    // Indice 2+: Semafori contatori per le code dei servizi (Produttore/Consumatore)
 
-// Macro utile per calcolare quanti semafori chiedere al sistema nel main
+// Utile per calcolare quanti semafori chiedere al sistema nel main
 #define TOTAL_SEMS (SEM_QUEUE_BASE + NUM_SERVICES)
 
 // Dati statici per la logica di simulazione
-// (Static const permette di includerli in ogni file senza errori di link)
+// (Static const per includerli in ogni file senza errori di link)
 static const int SERVICE_TIMES_MINUTES[] = {10, 8, 6, 8, 20, 20};
 static const char *SERVICE_NAMES[] = {
     "Spedizioni", "Posta", "Bancoposta", "Bollettini", "Prodotti Fin.", "Orologi"
@@ -58,7 +58,7 @@ typedef struct {
     int sim_duration;       
     int nof_workers;        
     int nof_users;          
-    int nano_secs_per_min;  // Time-scaling: nanosecondi reali per 1 minuto simulato
+    int nano_secs_per_min;  // Nanosecondi reali per 1 minuto simulato
     int explode_threshold;  
     int nof_pause;          
     int p_serv_min;         
@@ -66,7 +66,7 @@ typedef struct {
 } Config;
 
 // Struttura Statistiche:
-// Raccoglie i dati richiesti. È duplicata in SHM: una istanza per il giorno corrente, una per i totali
+// Raccoglie i dati richiesti. È duplicata in SHM: un'istanza per il giorno corrente, una per i totali
 typedef struct {
     int utenti_serviti;
     int servizi_erogati[NUM_SERVICES];
@@ -78,7 +78,7 @@ typedef struct {
 } Stats;
 
 // --- MEMORIA CONDIVISA (SHM) ---
-// Struttura Monolitica: Raggruppa TUTTO lo stato del sistema
+// Struttura unica: Raggruppa tutto lo stato del sistema
 // Vantaggio: Con un solo shmid ho accesso a flag, code, sportelli e statistiche
 typedef struct {
     int ufficio_aperto;                 // Flag di Stato: 1=Aperto, 0=Chiuso
@@ -110,7 +110,7 @@ typedef struct {
 } MsgTicket;
 
 // --- HELPER FUNCTIONS SEMAFORI ---
-// Definite 'static inline' per efficienza (evitano overhead chiamata funzione)
+// Definite 'static inline' per evitare overhead chiamata funzione
 // e per includerle nell'header senza creare conflitti di simboli multipli
 
 // Wrapper per semop BLOCCANTE (Standard P/V)

@@ -1,8 +1,8 @@
 #include "common.h"
 
 /*
- * OPERATORE.C (Il "Consumatore")
- * * Questo processo simula il lavoratore allo sportello
+ * OPERATORE.C (Il Consumatore)
+ * * Questo processo simula l'operatore allo sportello
  * * Punti Critici gestiti:
  * 1. Race Conditions sulla scelta del posto (risolto con Mutex)
  * 2. Prevenzione Deadlock in chiusura (risolto con IPC_NOWAIT).
@@ -17,10 +17,10 @@ int main(void) {
 
     srand(getpid());
     
-    int my_skill = rand() % NUM_SERVICES; // La specializzazione dell'operatore
+    int my_skill = rand() % NUM_SERVICES; // Specializzazione dell'operatore
     int pause_rimanenti = shm->cfg.nof_pause;
     
-    // Sincronizzazione Start (Pattern Turnstile)
+    // Sincronizzazione Start
     P(sem_id, SEM_START); 
     V(sem_id, SEM_START);
 
@@ -30,7 +30,7 @@ int main(void) {
         int my_seat = -1;
 
         // Loop di attesa: finché l'ufficio è aperto e non ho la sedia, continuo a cercare
-        // Questo soddisfa il requisito: resta in attesa che uno sportello si liberi
+        // Resta in attesa che uno sportello si liberi
         while (shm->ufficio_aperto && !shm->stop_simulation) {
             
             P(sem_id, SEM_MUTEX); // Lock per leggere array condiviso
@@ -57,12 +57,12 @@ int main(void) {
         if (my_seat != -1) {
             
             // --- FASE 2: LOOP DI LAVORO (Consumatore) ---
-            // Lavoro se l'ufficio è aperto OPPURE se c'è ancora coda da smaltire
+            // Lavoro se l'ufficio è aperto oppure se c'è ancora coda da smaltire
             while (shm->ufficio_aperto || shm->utenti_in_attesa[my_skill] > 0) {
                 
-                // GESTIONE PAUSA (Opzionale)
+                // GESTIONE PAUSA
                 if (pause_rimanenti > 0 && (rand() % 100) < 5) { 
-                    // Per andare in pausa DEVO liberare la risorsa (sedia).
+                    // Per andare in pausa devo liberare la risorsa (sedia)
                     P(sem_id, SEM_MUTEX);
                     shm->sportelli_occupati[my_seat] = 0; 
                     shm->stats_giornaliere.pause_effettuate++;
@@ -71,24 +71,24 @@ int main(void) {
                     usleep(shm->cfg.nano_secs_per_min * 10 / 1000); // Pausa caffè
                     pause_rimanenti--;
                     
-                    // Al ritorno, devo ricompetere per la sedia
+                    // Al ritorno devo ricompetere per la sedia
                     P(sem_id, SEM_MUTEX);
                     if(shm->sportelli_occupati[my_seat] == 0) {
                          shm->sportelli_occupati[my_seat] = getpid(); // Ripresa
                          V(sem_id, SEM_MUTEX);
                     } else {
                          V(sem_id, SEM_MUTEX);
-                         // Posto perso (rubato da un collega)! Esco e aspetto domani
+                         // Posto perso (rubato da un collega), esco e aspetto domani
                          continue; 
                     }
                 }
 
-                // --- PRELIEVO CLIENTE (PUNTO CRITICO TECNICO) ---
+                // --- PRELIEVO CLIENTE (PUNTO CRITICO) ---
                 // Uso IPC_NOWAIT per evitare Deadlock se la coda è vuota e l'ufficio chiude
                 struct sembuf s = {SEM_QUEUE_BASE + my_skill, -1, IPC_NOWAIT};
                 
                 if (semop(sem_id, &s, 1) != -1) {
-                    // SUCCESSO: Preso cliente
+                    // SUCCESSO: Cliente preso
                     struct timespec t_start, t_end;
                     clock_gettime(CLOCK_MONOTONIC, &t_start);
 
@@ -118,12 +118,12 @@ int main(void) {
                      // FALLIMENTO: Coda vuota (EAGAIN)
                      if(errno == EAGAIN) {
                          usleep(1000); // Breve sleep no-busy-waiting
-                         if(!shm->ufficio_aperto) break; // Se chiuso, fine turno
+                         if(!shm->ufficio_aperto) break; // Se chiuso fine turno
                      }
                 }
             } // Fine While Lavoro
 
-            // A fine turno, libero ufficialmente la sedia
+            // A fine turno libero ufficialmente la sedia
             P(sem_id, SEM_MUTEX);
             if(shm->sportelli_occupati[my_seat] == getpid()) shm->sportelli_occupati[my_seat] = 0;
             V(sem_id, SEM_MUTEX);

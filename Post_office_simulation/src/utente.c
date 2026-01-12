@@ -7,7 +7,7 @@
  * 2. Scelta casuale del servizio e dell'orario di arrivo
  * 3. Controllo disponibilità sportelli (Lettura protetta)
  * 4. Logica di "Abbandono": Se l'ufficio chiude e l'utente è ancora in coda,
- *   smette semplicemente di aspettare. Il conteggio dei "Non Erogati"
+ *   smette semplicemente di aspettare. Il conteggio "Non Erogati"
  *   è delegato al Direttore che legge la coda residua.
  */
 
@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     // tutti gli utenti facciano le stesse scelte nello stesso istante
     srand(getpid() * time(NULL)); 
     
-    // --- 2. SINCRONIZZAZIONE START (Pattern Turnstile) ---
+    // --- 2. SINCRONIZZAZIONE START ---
     // Aspetto il via del Direttore e sblocco subito il prossimo utente
     P(sem_id, SEM_START); 
     V(sem_id, SEM_START); 
@@ -36,17 +36,17 @@ int main(int argc, char *argv[]) {
         // Stabilisce un orario -> Simulo ritardo arrivo random
         usleep((rand() % 30) * shm->cfg.nano_secs_per_min / 1000);
 
-        // "Decide se recarsi... secondo probabilità"
+        // Decide se recarsi secondo una probabilità
         int r = rand() % 100;
         
-        // Controllo anche che l'ufficio non abbia chiuso durante il mio "viaggio" (sleep)
+        // Controllo anche che l'ufficio non abbia chiuso durante la mia sleep
         if (r < P_SERV && shm->ufficio_aperto) {
             
-            // "Stabilisce il servizio"
+            // Stabilisce il servizio
             int servizio = rand() % NUM_SERVICES; 
             
             // --- CHECK DISPONIBILITÀ (Lettore) ---
-            // Verifico se OGGI quel servizio è attivo
+            // Verifico se oggi quel servizio è attivo
             // Uso il MUTEX in lettura per evitare Race Conditions se il Direttore 
             // sta ancora configurando gli sportelli
             int servizio_disponibile = 0;
@@ -69,20 +69,19 @@ int main(int argc, char *argv[]) {
                 msgrcv(msg_id, &m, sizeof(MsgTicket)-sizeof(long), getpid(), 0);
 
                 // --- FASE 2: IN CODA (Ruolo: Produttore) ---
-                
                 // Aggiorno contatore visuale (Shared Memory)
                 P(sem_id, SEM_MUTEX);
                 shm->utenti_in_attesa[servizio]++;
                 V(sem_id, SEM_MUTEX);
 
                 // Segnalo all'Operatore che c'è lavoro
-                // Faccio V() (Signal) perché sto "producendo" un cliente in coda
+                // Faccio V() (Signal) perché sto producendo un cliente in coda
                 // L'operatore farà P() (Wait) per servirmi
                 V(sem_id, SEM_QUEUE_BASE + servizio);
 
                 // N.B.:
                 // A questo punto sono logicamente in coda. Non mi blocco su un semaforo
-                // (perché non ho un canale di ritorno 1-a-1 per la fine servizio),
+                // (perché non ho un canale di ritorno uno a uno per la fine servizio),
                 // ma entro nel loop di attesa passiva qui sotto
             }
         }
@@ -97,8 +96,8 @@ int main(int argc, char *argv[]) {
         // 2. L'ufficio ha chiuso
         //    Se ero in coda e non sono stato servito, il contatore `utenti_in_attesa`
         //    non è stato decrementato dall'operatore
-        //    Io "abbandono" semplicemente uscendo da questo loop e tornando a casa
-        //    Il Direttore conterà i residui come "Servizi Non Erogati"
+        //    "Abbandono" semplicemente uscendo da questo loop e tornando a casa
+        //    Il Direttore conterà i residui come servizi non erogati
         
         // 3. Aspetto a casa che l'ufficio riapra il giorno dopo
         while(!shm->ufficio_aperto && !shm->stop_simulation) usleep(100000); 
