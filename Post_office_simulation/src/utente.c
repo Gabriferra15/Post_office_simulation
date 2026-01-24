@@ -32,26 +32,23 @@ int main(int argc, char *argv[]) {
     V(sem_id, SEM_START); 
 
     while (!shm->stop_simulation) {
-        
-        // Stabilisce un orario -> Simulo ritardo arrivo random
-        usleep((rand() % 30) * shm->cfg.nano_secs_per_min / 1000);
+        //Polling sull'apertura dell'ufficio
+        while(!shm->ufficio_aperto && !shm->stop_simulation) sleep(1);
+        if(shm->stop_simulation) break;
 
-        // Decide se recarsi secondo una probabilità
-        int r = rand() % 100;
-        
-        // Controllo anche che l'ufficio non abbia chiuso durante la mia sleep
-        if (r < P_SERV && shm->ufficio_aperto) {
-            
-            // Stabilisce il servizio
+        usleep((rand() % 100) * 1000); //Ritardo casuale
+
+        // --- RICHIESTA SERVIZIO ---
+        // Decido se richiedere un servizio in base a P_SERV
+        if ((rand() % 100) < P_SERV && shm->ufficio_aperto) {
+            // Scelgo un servizio a caso
             int servizio = rand() % NUM_SERVICES; 
-            
-            // --- CHECK DISPONIBILITÀ (Lettore) ---
-            // Verifico se oggi quel servizio è attivo
-            // Uso il MUTEX in lettura per evitare Race Conditions se il Direttore 
-            // sta ancora configurando gli sportelli
             int servizio_disponibile = 0;
+
+            // Controllo se il servizio è offerto da qualche sportello
             P(sem_id, SEM_MUTEX);
             for(int i=0; i<MAX_SPORTELLI; i++) {
+                // Se uno sportello offre il servizio, lo segno come disponibile
                 if(shm->sportelli_mapping[i] == servizio) { 
                     servizio_disponibile = 1; 
                     break; 
@@ -60,29 +57,25 @@ int main(int argc, char *argv[]) {
             V(sem_id, SEM_MUTEX);
 
             if(servizio_disponibile) {
-                // --- FASE 1: PRENDERE IL TICKET ---
-                // Richiesta sincrona via Message Queue
+                // Invio la richiesta di ticket
                 MsgTicket m = {1, getpid(), servizio, 0};
                 msgsnd(msg_id, &m, sizeof(MsgTicket)-sizeof(long), 0);
-                
-                // Attendo risposta sul mio canale privato (mtype = mio PID)
+                // Attendo la risposta (numero di ticket)
                 msgrcv(msg_id, &m, sizeof(MsgTicket)-sizeof(long), getpid(), 0);
 
-                // --- FASE 2: IN CODA (Ruolo: Produttore) ---
-                // Aggiorno contatore visuale (Shared Memory)
                 P(sem_id, SEM_MUTEX);
+                // Incremento il contatore virtuale della coda del servizio richiesto
                 shm->utenti_in_attesa[servizio]++;
                 V(sem_id, SEM_MUTEX);
 
-                // Segnalo all'Operatore che c'è lavoro
-                // Faccio V() (Signal) perché sto producendo un cliente in coda
-                // L'operatore farà P() (Wait) per servirmi
+                // Attendo di essere servito (decremento del contatore virtuale
+                // fatto dall'operatore al momento del servizio)
                 V(sem_id, SEM_QUEUE_BASE + servizio);
-
-                // N.B.:
-                // A questo punto sono logicamente in coda. Non mi blocco su un semaforo
-                // (perché non ho un canale di ritorno uno a uno per la fine servizio),
-                // ma entro nel loop di attesa passiva qui sotto
+            } else {
+                // MODIFICA: Se il servizio non esiste, conta come non erogato subito
+                P(sem_id, SEM_MUTEX);
+                shm->stats_giornaliere.servizi_non_erogati++;
+                V(sem_id, SEM_MUTEX);
             }
         }
         
@@ -91,7 +84,7 @@ int main(int argc, char *argv[]) {
         
         // 1. Finché l'ufficio è aperto, aspetto (simulo di essere in fila o servito)
         //    Uso polling lento (0.1s) per non sprecare CPU
-        while(shm->ufficio_aperto && !shm->stop_simulation) usleep(100000); 
+        while(shm->ufficio_aperto && !shm->stop_simulation) usleep(1000); 
         
         // 2. L'ufficio ha chiuso
         //    Se ero in coda e non sono stato servito, il contatore `utenti_in_attesa`
@@ -100,7 +93,7 @@ int main(int argc, char *argv[]) {
         //    Il Direttore conterà i residui come servizi non erogati
         
         // 3. Aspetto a casa che l'ufficio riapra il giorno dopo
-        while(!shm->ufficio_aperto && !shm->stop_simulation) usleep(100000); 
+        while(!shm->ufficio_aperto && !shm->stop_simulation) usleep(1000); 
 
     }
     
